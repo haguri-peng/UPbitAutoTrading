@@ -1,0 +1,11 @@
+### IntelliJ IDEA ##
+.idea
+
+### Mac OS ###
+.DS_Store
+
+### venv ###
+.venv
+
+### practice ###
+practice
