@@ -109,12 +109,13 @@
 │   └── email_utils.py
 ├── .env
 ├── .gitignore
+├── CHANGELOG.md
 ├── README.md
 ├── logging.conf
 ├── main.py
 └── requirements.txt
 
-6 directories, 12 files
+6 directories, 13 files
 ```
 
 ## 참조
