@@ -53,14 +53,10 @@
 - 거래량은 20MA 이동 평균을 기준으로 하여 이보다 많은지 확인
 - 볼린저밴드는 이전 캔들의 종가가 볼린저밴드의 상단을 돌파하는 지 확인
 
----
-
 ## 스케줄러
 
 - APScheduler의 BackgroundScheduler 적용
 - 매분 선언한 `auto_trading` 함수를 실행하도록 interval 설정
-
----
 
 ## 업비트 Open API 키
 
@@ -68,16 +64,12 @@
 2. `Access Key`와 `Secret Key` 확인
 3. [.env](/.env) 파일에 정보 입력
 
----
-
 ## 알림
 
 - 매매 시 SMTP로 메일(Gmail)을 전송합니다.  
   (Gmail > Forwarding and POP/IMAP > IMAP access > <u>**Enable IMAP**</u>)
 - 현재 사용하고 있는 Google 계정이 아니라 다른 계정(Google)을 하나 더 생성해서 세팅하는 걸 추천합니다.
 - 송/수신자 정보는 [.env](/.env) 파일에 작성하면 됩니다.
-
----
 
 ## 로그 파일
 
@@ -90,14 +82,10 @@
 로그 폴더가 반드시 있어야 실행됩니다. 로그는 매일 자정을 기준으로 새로 생성되며, 최대 60일 동안 보관합니다.  
 (단, 설정 파일 내용에서 로그 파일의 Path는 <mark>절대경로</mark>로 지정해야 함)
 
----
-
 ## 개발 환경 및 테스트
 
 - Python Version: 3.9.6
 - Mac에서 작업하고 이 프로그램 소스를 가지고 윈도우(Python 3.13.1)에서 정상적으로 실행하고 있습니다.
-
----
 
 ## Tree
 
@@ -123,8 +111,6 @@
 
 6 directories, 12 files
 ```
-
----
 
 ## 참조
 
