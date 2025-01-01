@@ -42,8 +42,8 @@ def get_min_candle_data(market: str, minute: int):
     last_time = None
 
     # 5번 호출하여 1,000개의 데이터를 만든다.
-    # 한번 호출 시, 15분 간격으로 200개씩 데이터를 가져온다.
-    # 이 데이터는 15 X 200 = 3000분. 50시간에 해당하는 데이터
+    # 한번 호출 시, {minute}분 간격으로 200개씩 데이터를 가져온다.
+    # 이 데이터는 {minute} X 200
     for i in range(5):
         if i == 0:
             candle_min_params = {
