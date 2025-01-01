@@ -11,7 +11,7 @@ def trading_strategy(
         position: int,
         buy_time: Optional[str] = None,
         buy_price: Optional[float] = None
-) -> str:
+) -> dict:
     """
     코인 트레이딩 전략 함수 - 시장 상황(상승장/하락장)에 따른 차별화된 전략 적용
 
@@ -61,10 +61,7 @@ def trading_strategy(
     # 시장 상황 판단 (50MA와 200MA 비교)
     is_bull_market = df['MA50'].iloc[-1] > df['MA200'].iloc[-1]
 
-    # # 50MA의 기울기 계산 (최근 3개 값으로 방향성 판단)
-    # recent_ma50 = df['MA50'].tail(3).values
-    # ma50_slope = recent_ma50[-1] - recent_ma50[0]
-    # is_bull_market = ma50_slope > 0
+    print(f'is_bull_market : {is_bull_market}')
 
     # RSI 계산
     rsi_indicator = RSIIndicator(df['close'], window=14)
@@ -112,29 +109,47 @@ def trading_strategy(
                     recent_df_100['MACD_histogram'].iloc[-1] > recent_df_100['MACD_histogram'].iloc[-2]
             )
 
+            print(f'has_double_bottom : {has_double_bottom}')
+            print(f'macd_turned_positive : {macd_turned_positive}')
+
             buy_condition = has_double_bottom and macd_turned_positive
 
         if buy_condition:
             print(f'buy_signal!! ({"상승장" if is_bull_market else "하락장"})')
-            return 'buy'
+            return {
+                "signal": "buy",
+                "message": f"{'상승장' if is_bull_market else '하락장'} 매수 조건에 부합"
+            }
 
     # 매도 가능
     elif position == 1:
         # 필수 입력값 검증
         if not buy_time or not buy_price:
             print('매수 시간 또는 가격 정보가 없습니다.')
-            return ''
+            return {
+                "signal": "",
+                "message": ""
+            }
 
-        # 손절매 조건 (2% 손실)
+        # 손절매 조건 (1.69420% 손실)
         current_price = df['close'].iloc[-1]
-        if current_price <= buy_price * 0.98:
+        if current_price < buy_price * 0.983058:
             print('sell_signal - 손절매!!')
-            return 'sell'
+            return {
+                "signal": "sell",
+                "message": "손절매!!"
+            }
 
+        # 20일 거래량 이동평균 계산 추가
+        df['Volume_MA20'] = df['volume'].rolling(window=20).mean()
+
+        # 'datetime' 데이터 만들기
         df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
         buy_datetime = pd.to_datetime(buy_time)
 
         after_buy_df = df[df['datetime'] > buy_datetime]
+
+        print(f'len(after_buy_df) : {len(after_buy_df)}')
 
         # 최소 2개의 캔들이 있어야 인덱싱 가능
         if len(after_buy_df) >= 2:
@@ -148,24 +163,35 @@ def trading_strategy(
                         after_buy_df['MACD'].iloc[-2] >= after_buy_df['MACD_signal'].iloc[-2]
                 )
 
+                print(f'rsi_above_72 : {rsi_above_72}')
+                print(f'macd_cross_down : {macd_cross_down}')
+
                 if rsi_above_72 and macd_cross_down:
                     print('sell_signal - [상승장] RSI > 72 once and MACD cross down')
-                    return 'sell'
+                    return {
+                        "signal": "sell",
+                        "message": "[상승장] RSI > 72 once and MACD cross down"
+                    }
             else:
                 # 하락장 매도 조건 (거래량 + 볼린저 밴드 상단 돌파)
-                # 20일 거래량 이동평균 계산 추가
-                df['Volume_MA20'] = df['volume'].rolling(window=20).mean()
                 prev_candle = after_buy_df.iloc[-2]
 
-                # current_price = after_buy_df['close'].iloc[-1]
-                # bb_upper = after_buy_df['BB_upper'].iloc[-1]
+                print(f'prev_candle["close"] : {prev_candle["close"]}')
+                print(f'prev_candle["BB_upper"] : {prev_candle["BB_upper"]}')
+                print(f'prev_candle["volume"] : {prev_candle["volume"]}')
+                print(f'prev_candle["Volume_MA20"] : {prev_candle["Volume_MA20"]}')
 
-                # if current_price >= bb_upper:
-
-                # 거래량 이동평균 비교로 변경
+                # 이전 캔들 기준으로 계산
+                # 이전 캔들의 종가가 볼린저밴드 상단을 돌파 and 거래량이 20일 이동평균을 초과
                 if (prev_candle['close'] >= prev_candle['BB_upper'] and
                         prev_candle['volume'] > prev_candle['Volume_MA20']):
                     print('sell_signal - [하락장] 이전 캔들이 볼린저 밴드 상단 돌파 및 거래량 증가')
-                    return 'sell'
+                    return {
+                        "signal": "sell",
+                        "message": "[하락장] 이전 캔들이 볼린저 밴드 상단 돌파 및 거래량 증가"
+                    }
 
-    return ''
+    return {
+        "signal": "",
+        "message": ""
+    }

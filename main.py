@@ -27,6 +27,7 @@ from utils.email_utils import send_email
 
 # 전역변수
 buy_time = None  # 매수시간
+krw_balance = 0  # 계좌잔고(KRW)
 
 # 로그파일 경로
 log_dir = os.path.join(current_dir, 'logs')
@@ -97,20 +98,20 @@ def check_time():
     # 현재 분(minute) 추출
     current_minute = current_time.minute
 
-    # 현재 분(minute)이 15의 배수인지 확인
-    is_multiple_of_fifteen = current_minute % 15 == 0
+    # 현재 분(minute)이 10의 배수인지 확인
+    is_multiple_of_ten = current_minute % 10 == 0
 
     logger.debug(f'current_time : {current_time}, current_minute : {current_minute}')
-    logger.debug(f'is_multiple_of_fifteen : {is_multiple_of_fifteen}')
+    logger.debug(f'is_multiple_of_ten : {is_multiple_of_ten}')
 
-    return is_multiple_of_fifteen
+    return is_multiple_of_ten
 
 
 def get_data():
-    # 도지코인(KRW-DOGE) 15분봉 가져오기
-    doge_15min_data = get_min_candle_data('KRW-DOGE', 15)
+    # 도지코인(KRW-DOGE) 10분봉 가져오기
+    doge_10min_data = get_min_candle_data('KRW-DOGE', 10)
 
-    return doge_15min_data
+    return doge_10min_data
 
 
 def auto_trading():
@@ -119,7 +120,7 @@ def auto_trading():
         account_info = get_account_info()
 
         # 시간 확인
-        multiple_of_fifteen = check_time()
+        multiple_of_ten = check_time()
 
         # 포지션 확인 (0: 매수 가능, 1: 매도 가능)
         # 현재 계좌에 매수된 코인 정보가 없으면 '매수 가능(0)', 있으면 매도 가능(1)입니다.
@@ -128,26 +129,28 @@ def auto_trading():
         logger.debug(f'current_position : {current_position}')
 
         # 전역변수 사용
-        global buy_time
+        global buy_time, krw_balance
+
+        # 현재 계좌잔고(KRW) 세팅
+        krw_balance = account_info['krw_balance']
 
         # 매수
         if current_position == 0:
-            # 매수는 15분 간격으로 체크한 다음 진행
-            if multiple_of_fifteen:
+            # 매수는 10분 간격으로 체크한 다음 진행
+            if multiple_of_ten:
                 trade_strategy_result = trading_strategy(get_data(), current_position)
 
                 logger.debug(f'trade_strategy_result : {trade_strategy_result}')
 
-                if trade_strategy_result == 'buy':
+                if trade_strategy_result['signal'] == 'buy':
                     buy_result = buy_market('KRW-DOGE', account_info['krw_available'])
                     if buy_result['uuid'].notnull()[0]:
                         # 시장가로 주문하기 때문에 uuid 값이 있으면 정상적으로 처리됐다고 가정한다.
-                        # 매수하면서 전역변수인 매수시간(buy_time)을 세팅한다.
+                        # 매수하면서 전역변수인 매수시간을 세팅한다.
                         buy_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         logger.info(f'[KRW-DOGE] {account_info["krw_available"]}원 매수 하였습니다.')
 
-                        send_email('[KRW-DOGE] 시장가 매수',
-                                   '매수는 최근 25번 이내에 RSI가 25 이하(floor 적용하여 소수점 절사)인 적이 있고, MACD signal이 교차되는 경우에 진행')
+                        send_email('[KRW-DOGE] 시장가 매수', trade_strategy_result['message'])
                     else:
                         logger.error('매수가 정상적으로 처리되지 않았습니다.')
 
@@ -158,15 +161,20 @@ def auto_trading():
 
             logger.debug(f'trade_strategy_result : {trade_strategy_result}')
 
-            if trade_strategy_result == 'sell':
+            if trade_strategy_result['signal'] == 'sell':
                 sell_result = sell_market('KRW-DOGE', account_info['doge_balance'])
                 if sell_result['uuid'].notnull()[0]:
-                    # 매도하면서 전역변수인 매수시간(buy_time)을 초기화한다.
+                    # 매도하면서 전역변수인 매수시간을 초기화한다.
                     buy_time = None
-                    logger.info(f'[KRW-DOGE] {account_info["doge_balance"]} 매도 하였습니다.')
 
-                    send_email('[KRW-DOGE] 시장가 매도',
-                               '매도는 RSI가 한번이라도 72을 넘어서고, MACD가 하향 교차되는 경우 진행')
+                    # 매도 이후에 매매수익을 확인하기 위해 계좌정보를 다시 조회
+                    after_sell_account_info = get_account_info()
+                    trade_balance = math.floor(after_sell_account_info["krw_balance"] - krw_balance)
+
+                    logger.info(f'[KRW-DOGE] {account_info["doge_balance"]} 매도 하였습니다.')
+                    logger.info(f'매매수익은 {trade_balance} 입니다.')
+
+                    send_email('[KRW-DOGE] 시장가 매도', f'{trade_strategy_result["message"]}\n매매수익은 {trade_balance} 입니다.')
                 else:
                     logger.error('매도가 정상적으로 처리되지 않았습니다.')
 
