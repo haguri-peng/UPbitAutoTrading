@@ -132,7 +132,7 @@ def auto_trading():
         global buy_time, krw_balance
 
         # 현재 계좌잔고(KRW) 세팅
-        krw_balance = account_info['krw_balance']
+        krw_balance = math.floor(account_info['krw_balance'])
 
         # 매수
         if current_position == 0:
@@ -164,19 +164,29 @@ def auto_trading():
             if trade_strategy_result['signal'] == 'sell':
                 sell_result = sell_market('KRW-DOGE', account_info['doge_balance'])
                 if sell_result['uuid'].notnull()[0]:
+                    # 5초 대기
+                    time.sleep(5)
+
                     # 매도하면서 전역변수인 매수시간을 초기화한다.
                     buy_time = None
 
                     # 매도 이후에 매매수익을 확인하기 위해 계좌정보를 다시 조회
-                    after_sell_account_info = get_account_info()
-                    trade_balance = math.floor(after_sell_account_info["krw_balance"] - krw_balance)
+                    after_sell_account = get_my_exchange_account()
+
+                    # 원화 잔고 확인
+                    trade_result = 0
+                    if 'KRW' in after_sell_account['currency'].values:
+                        after_sell_krw_bal = math.floor(
+                            after_sell_account[after_sell_account['currency'] == 'KRW']['balance'].values[0])
+                        trade_result = math.floor(after_sell_krw_bal - krw_balance)
 
                     logger.info(f'[KRW-DOGE] {account_info["doge_balance"]} 매도 하였습니다.')
-                    logger.info(f'매매수익은 {trade_balance} 입니다.')
+                    logger.info(f'매매수익은 {trade_result} 입니다.')
 
-                    send_email('[KRW-DOGE] 시장가 매도', f'{trade_strategy_result["message"]}\n매매수익은 {trade_balance} 입니다.')
+                    send_email('[KRW-DOGE] 시장가 매도', f'{trade_strategy_result["message"]}\n매매수익은 {trade_result} 입니다.')
                 else:
                     logger.error('매도가 정상적으로 처리되지 않았습니다.')
+                    send_email('매도 중 에러 발생', '매도 중 에러가 발생하였습니다. 확인해주세요.')
 
     except ValueError as ve:
         logger.error(f'ValueError : {ve}')
