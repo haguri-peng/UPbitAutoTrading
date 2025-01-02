@@ -1,4 +1,4 @@
-import math
+# import math
 import pandas as pd
 from typing import Optional
 from ta.trend import MACD
@@ -76,17 +76,27 @@ def trading_strategy(
     # 볼린저 밴드 계산
     bollinger = BollingerBands(df['close'])
     df['BB_upper'] = bollinger.bollinger_hband()
+    df['BB_lower'] = bollinger.bollinger_lband()
 
     # 매수 가능
     if position == 0:
         if is_bull_market:
             # 상승장 매수 조건
             recent_df: pd.DataFrame = df.tail(25)
-            buy_condition = (
-                    math.floor(recent_df['RSI'].min()) <= 25 and
-                    (recent_df['MACD_histogram'] > 0).any() and
-                    recent_df['MACD_histogram'].iloc[-1] > recent_df['MACD_histogram'].iloc[-2]
-            )
+
+            # 이전 캔들이 볼린저 밴드 하단 아래로 내려갔는지 확인
+            prev_candle_below_bb = recent_df['close'].iloc[-2] <= recent_df['BB_lower'].iloc[-2]
+
+            # 최종 캔들이 양봉인지 확인
+            current_candle_is_positive = recent_df['close'].iloc[-1] >= recent_df['open'].iloc[-1]
+
+            buy_condition = prev_candle_below_bb and current_candle_is_positive
+
+            # buy_condition = (
+            #         math.floor(recent_df['RSI'].min()) <= 25 and
+            #         (recent_df['MACD_histogram'] > 0).any() and
+            #         recent_df['MACD_histogram'].iloc[-1] > recent_df['MACD_histogram'].iloc[-2]
+            # )
         else:
             # 하락장 매수 조건
             recent_df_100: pd.DataFrame = df.tail(100)

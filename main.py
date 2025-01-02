@@ -98,13 +98,13 @@ def check_time():
     # 현재 분(minute) 추출
     current_minute = current_time.minute
 
-    # 현재 분(minute)이 10의 배수인지 확인
-    is_multiple_of_ten = current_minute % 10 == 0
+    # 현재 분(minute)이 5분으로 끝나는지 확인
+    is_reminder_of_five = current_minute % 10 == 5
 
     logger.debug(f'current_time : {current_time}, current_minute : {current_minute}')
-    logger.debug(f'is_multiple_of_ten : {is_multiple_of_ten}')
+    logger.debug(f'is_reminder_of_five : {is_reminder_of_five}')
 
-    return is_multiple_of_ten
+    return is_reminder_of_five
 
 
 def get_data():
@@ -120,7 +120,7 @@ def auto_trading():
         account_info = get_account_info()
 
         # 시간 확인
-        multiple_of_ten = check_time()
+        reminder_of_five = check_time()
 
         # 포지션 확인 (0: 매수 가능, 1: 매도 가능)
         # 현재 계좌에 매수된 코인 정보가 없으면 '매수 가능(0)', 있으면 매도 가능(1)입니다.
@@ -136,8 +136,8 @@ def auto_trading():
 
         # 매수
         if current_position == 0:
-            # 매수는 10분 간격으로 체크한 다음 진행
-            if multiple_of_ten:
+            # 매수는 현재 시간(분)의 끝 자리가 5(분)이면 진행
+            if reminder_of_five:
                 trade_strategy_result = trading_strategy(get_data(), current_position)
 
                 logger.debug(f'trade_strategy_result : {trade_strategy_result}')
