@@ -22,7 +22,7 @@ sys.path.append(utils_dir)
 from account.my_account import get_my_exchange_account
 from upbit_data.candle import get_min_candle_data
 from trading.trading_strategy import trading_strategy
-from trading.trade import buy_market, sell_market
+from trading.trade import buy_market, sell_market, get_open_order
 from utils.email_utils import send_email
 
 # 전역변수
@@ -164,8 +164,14 @@ def auto_trading():
             if trade_strategy_result['signal'] == 'sell':
                 sell_result = sell_market('KRW-DOGE', account_info['doge_balance'])
                 if sell_result['uuid'].notnull()[0]:
-                    # 5초 대기
-                    time.sleep(5)
+                    while True:
+                        open_order_df = get_open_order('KRW-DOGE', 'wait')
+
+                        # wait 중인 거래가 있으면 잠시 대기
+                        if len(open_order_df) > 0:
+                            time.sleep(5)  # 5초 대기
+                        else:
+                            break
 
                     # 매도하면서 전역변수인 매수시간을 초기화한다.
                     buy_time = None
