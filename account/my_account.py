@@ -25,11 +25,11 @@ my_account_url = 'https://api.upbit.com/v1/accounts'
 access_key = os.getenv('ACCESS_KEY', '')
 secret_key = os.getenv('SECRET_KEY', '')
 
-authorization = 'Bearer {}'.format(jwt.encode({'access_key': access_key, 'nonce': str(uuid.uuid4())}, secret_key))
-headers = {"Authorization": authorization}
-
 
 # 내 계좌를 확인합니다.
 def get_my_exchange_account():
+    authorization = 'Bearer {}'.format(jwt.encode({'access_key': access_key, 'nonce': str(uuid.uuid4())}, secret_key))
+    headers = {"Authorization": authorization}
+
     my_exchange_account = pd.DataFrame(requests.get(my_account_url, headers=headers).json())
     return my_exchange_account
