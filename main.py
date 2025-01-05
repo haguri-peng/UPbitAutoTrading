@@ -166,11 +166,12 @@ def auto_trading():
                 if sell_result['uuid'].notnull()[0]:
                     while True:
                         open_order_df = get_open_order('KRW-DOGE', 'wait')
+                        print(open_order_df)
 
-                        # wait 중인 거래가 있으면 잠시 대기
-                        if len(open_order_df) > 0:
-                            time.sleep(5)  # 5초 대기
-                        else:
+                        time.sleep(5)  # 5초 대기
+
+                        # wait 중인 거래가 없으면 반복 중단
+                        if len(open_order_df) == 0:
                             break
 
                     # 매도하면서 전역변수인 매수시간을 초기화한다.
@@ -178,6 +179,7 @@ def auto_trading():
 
                     # 매도 이후에 매매수익을 확인하기 위해 계좌정보를 다시 조회
                     after_sell_account = get_my_exchange_account()
+                    print(after_sell_account)
 
                     # 원화 잔고 확인
                     trade_result = 0
