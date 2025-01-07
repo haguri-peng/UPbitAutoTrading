@@ -185,7 +185,7 @@ def auto_trading():
                     trade_result = 0
                     if 'KRW' in after_sell_account['currency'].values:
                         after_sell_krw_bal = math.floor(
-                            after_sell_account[after_sell_account['currency'] == 'KRW']['balance'].values[0])
+                            float(after_sell_account[after_sell_account['currency'] == 'KRW']['balance'].values[0]))
                         trade_result = math.floor(after_sell_krw_bal - krw_balance)
 
                     logger.info(f'[KRW-DOGE] {account_info["doge_balance"]} 매도 하였습니다.')
