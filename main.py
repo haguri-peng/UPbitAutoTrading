@@ -131,9 +131,6 @@ def auto_trading():
         # 전역변수 사용
         global buy_time, krw_balance
 
-        # 현재 계좌잔고(KRW) 세팅
-        krw_balance = math.floor(account_info['krw_balance'])
-
         # 매수
         if current_position == 0:
             # 매수는 현재 시간(분)의 끝 자리가 5(분)이면 진행
@@ -143,7 +140,13 @@ def auto_trading():
                 logger.debug(f'trade_strategy_result : {trade_strategy_result}')
 
                 if trade_strategy_result['signal'] == 'buy':
+                    # 현재 계좌잔고(KRW) 세팅
+                    # 매도 시 얼마정도 수익을 봤느냐 체크하기 매수하기 전에 값을 세팅
+                    krw_balance = math.floor(account_info['krw_balance'])
+
+                    # 매수
                     buy_result = buy_market('KRW-DOGE', account_info['krw_available'])
+
                     if buy_result['uuid'].notnull()[0]:
                         # 시장가로 주문하기 때문에 uuid 값이 있으면 정상적으로 처리됐다고 가정한다.
                         # 매수하면서 전역변수인 매수시간을 세팅한다.
@@ -174,9 +177,6 @@ def auto_trading():
                         if len(open_order_df) == 0:
                             break
 
-                    # 매도하면서 전역변수인 매수시간을 초기화한다.
-                    buy_time = None
-
                     # 매도 이후에 매매수익을 확인하기 위해 계좌정보를 다시 조회
                     after_sell_account = get_my_exchange_account()
                     print(after_sell_account)
@@ -190,6 +190,10 @@ def auto_trading():
 
                     logger.info(f'[KRW-DOGE] {account_info["doge_balance"]} 매도 하였습니다.')
                     logger.info(f'매매수익은 {trade_result} 입니다.')
+
+                    # 매도하면서 전역변수를 초기화한다.
+                    buy_time = None
+                    krw_balance = 0
 
                     send_email('[KRW-DOGE] 시장가 매도', f'{trade_strategy_result["message"]}\n매매수익은 {trade_result} 입니다.')
                 else:
