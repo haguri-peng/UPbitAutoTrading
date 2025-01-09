@@ -26,20 +26,21 @@ def trading_strategy(
 
     ===============================================================================================
     # 매수/매도 플랜 설명
-    - 50MA, 200MA로 시장 상황 판단
-      : 상승장(50MA가 더 클 때): 기존 전략대로 진행
-      : 하락장(200MA가 더 클 때): 보다 보수적인 전략 적용
+    - 50MA, 200MA로 시장 상황 판단 [상승장(50MA > 200MA), 하락장(50MA < 200MA)]
     - 분할 매수/매도 하지 않고, 전 금액(KRW)로 매수하고 매도 시에도 한번에 전체를 매도합니다.
-    - 매매는 15분 간격으로 판단 (단, 매도는 매분 타이밍을 확인합니다.)
-    - 볼린저밴드, RSI, MACD 지표를 활용
+    - 매매는 10분(5/15/25/35/45/55) 간격으로 판단 (단, 매도는 매분 타이밍을 확인합니다.)
+    - RSI, MACD, 볼린저밴드, 거래량 지표를 활용
+    - 골든 크로스 / 데드 크로스 상황에 따라 매수/매도 처리
+    - 손절매 조건 (1.69420% 손실)
 
-    ## 기존 전략 (상승장)
-    - 매수는 최근 25번 이내에 RSI가 25 이하(floor 적용하여 소수점 절사)인 적이 있고, MACD signal이 교차되는 경우에 진행
+    ## 상승장 전략
+    - 매수는 이전 캔들이 볼린저밴드 하단 아래로 내려가고 최종 캔들이 양봉인 경우 진행
     - 매도는 RSI가 한번이라도 72을 넘어서고, MACD가 하향 교차되는 경우 진행
 
-    ## 보수적인 전략 (하락장)
+    ## 하락장 전략
     - 매수는 RSI가 25 이하로 쌍바닥이 나오고 MACD 히스토그램이 양전환. 상승장과 다르게 최근 100번의 데이터를 확인
-    - 매도는 볼린저 밴드 상단을 터치하거나 기존 손절매 조건인 경우
+      (50MA 기울기가 양수로 한번이라도 전환되기 전까지는 매수 금지)
+    - 매도는 이전 캔들(종가 기준)이 볼린저밴드 상단을 돌파하고 거래량이 20일 이동평균을 초과하는 경우
 
     # 계산에 사용될 df 설명
     - close: 종가
@@ -54,9 +55,24 @@ def trading_strategy(
     if not all(col in df.columns for col in required_columns):
         raise ValueError(f"DataFrame은 {required_columns} 컬럼을 포함해야 합니다.")
 
+    # 최소 200개 데이터 필요 (MA200 계산을 위해)
+    if len(df) < 200:
+        print('데이터가 부족합니다 (최소 200개 필요).')
+        return {
+            "signal": "",
+            "message": ""
+        }
+
     # 이동평균선 계산
     df['MA50'] = df['close'].rolling(window=50).mean()
     df['MA200'] = df['close'].rolling(window=200).mean()
+
+    # 50MA 기울기 계산
+    df['MA50_slope'] = df['MA50'].diff()  # diff() 함수를 사용하여 기울기 계산
+
+    # 골든 크로스 / 데드 크로스 확인
+    golden_cross = (df['MA50'].iloc[-2] < df['MA200'].iloc[-2]) and (df['MA50'].iloc[-1] > df['MA200'].iloc[-1])
+    dead_cross = (df['MA50'].iloc[-2] > df['MA200'].iloc[-2]) and (df['MA50'].iloc[-1] < df['MA200'].iloc[-1])
 
     # 시장 상황 판단 (50MA와 200MA 비교)
     is_bull_market = df['MA50'].iloc[-1] > df['MA200'].iloc[-1]
@@ -80,7 +96,28 @@ def trading_strategy(
 
     # 매수 가능
     if position == 0:
-        if is_bull_market:
+        # 50MA가 200MA보다 작은 구간의 DataFrame 추출
+        under_50ma_df = df[df['MA50'] < df['MA200']].tail(100)  # 최근 100개만 확인
+
+        # 해당 구간에서 50MA 기울기가 0보다 큰 적이 있는지 확인
+        ma50_slope_positive_after_dead_cross = (under_50ma_df['MA50_slope'] > 0).any()
+
+        # 데드 크로스 발생 후 50MA 기울기가 양수로 한번이라도 전환되기 전까지는 매수 금지
+        if not is_bull_market and not ma50_slope_positive_after_dead_cross:
+            print('데드 크로스 발생 후 50MA 기울기가 양수로 한번이라도 전환되기 전까지 매수 대기')
+            return {
+                "signal": "",
+                "message": ""
+            }
+
+        # 골든 크로스 발생 시 매수
+        if golden_cross:
+            print('buy_signal - 골든 크로스 발생!')
+            return {
+                "signal": "buy",
+                "message": "골든 크로스 발생"
+            }
+        elif is_bull_market:
             # 상승장 매수 조건
             recent_df: pd.DataFrame = df.tail(25)
 
@@ -91,12 +128,6 @@ def trading_strategy(
             current_candle_is_positive = recent_df['close'].iloc[-1] >= recent_df['open'].iloc[-1]
 
             buy_condition = prev_candle_below_bb and current_candle_is_positive
-
-            # buy_condition = (
-            #         math.floor(recent_df['RSI'].min()) <= 25 and
-            #         (recent_df['MACD_histogram'] > 0).any() and
-            #         recent_df['MACD_histogram'].iloc[-1] > recent_df['MACD_histogram'].iloc[-2]
-            # )
         else:
             # 하락장 매수 조건
             recent_df_100: pd.DataFrame = df.tail(100)
@@ -115,10 +146,11 @@ def trading_strategy(
 
             # MACD 히스토그램 양전환 확인
             macd_turned_positive = (
-                    recent_df_100['MACD_histogram'].iloc[-1] > 0 and
-                    recent_df_100['MACD_histogram'].iloc[-1] > recent_df_100['MACD_histogram'].iloc[-2]
+                    recent_df_100['MACD_histogram'].iloc[-1] > recent_df_100['MACD_histogram'].iloc[-2] and
+                    recent_df_100['MACD_histogram'].iloc[-1] > 0 > recent_df_100['MACD_histogram'].iloc[-2]
             )
 
+            print(f'len(rsi_valleys) : {len(rsi_valleys)}')
             print(f'has_double_bottom : {has_double_bottom}')
             print(f'macd_turned_positive : {macd_turned_positive}')
 
@@ -139,6 +171,14 @@ def trading_strategy(
             return {
                 "signal": "",
                 "message": ""
+            }
+
+        # 데드 크로스 발생 시 매도
+        if dead_cross:
+            print('sell_signal - 데드 크로스 발생!')
+            return {
+                "signal": "sell",
+                "message": "데드 크로스 발생"
             }
 
         # 손절매 조건 (1.69420% 손실)
