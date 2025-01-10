@@ -147,7 +147,8 @@ def trading_strategy(
             # MACD 히스토그램 양전환 확인
             macd_turned_positive = (
                     recent_df_100['MACD_histogram'].iloc[-1] > recent_df_100['MACD_histogram'].iloc[-2] and
-                    recent_df_100['MACD_histogram'].iloc[-1] > 0 > recent_df_100['MACD_histogram'].iloc[-2]
+                    (recent_df_100['MACD_histogram'].iloc[-1] > 0 > recent_df_100['MACD_histogram'].iloc[-2] or
+                     recent_df_100['MACD_histogram'].iloc[-1] > 0 > recent_df_100['MACD_histogram'].iloc[-3])
             )
 
             print(f'len(rsi_valleys) : {len(rsi_valleys)}')
