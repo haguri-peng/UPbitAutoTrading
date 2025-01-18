@@ -98,20 +98,20 @@ def check_time():
     # 현재 분(minute) 추출
     current_minute = current_time.minute
 
-    # 현재 분(minute)이 5분으로 끝나는지 확인
-    is_reminder_of_five = current_minute % 10 == 5
+    # 현재 분(minute)이 3으로 나눴을 때 1인지 확인 (3n + 1)
+    is_reminder_of_one = current_minute % 3 == 1
 
     logger.debug(f'current_time : {current_time}, current_minute : {current_minute}')
-    logger.debug(f'is_reminder_of_five : {is_reminder_of_five}')
+    logger.debug(f'is_reminder_of_one : {is_reminder_of_one}')
 
-    return is_reminder_of_five
+    return is_reminder_of_one
 
 
 def get_data():
-    # 도지코인(KRW-DOGE) 10분봉 가져오기
-    doge_10min_data = get_min_candle_data('KRW-DOGE', 10)
+    # 도지코인(KRW-DOGE) 3분봉 가져오기
+    doge_3min_data = get_min_candle_data('KRW-DOGE', 3)
 
-    return doge_10min_data
+    return doge_3min_data
 
 
 def auto_trading():
@@ -120,7 +120,7 @@ def auto_trading():
         account_info = get_account_info()
 
         # 시간 확인
-        reminder_of_five = check_time()
+        reminder_of_one = check_time()
 
         # 포지션 확인 (0: 매수 가능, 1: 매도 가능)
         # 현재 계좌에 매수된 코인 정보가 없으면 '매수 가능(0)', 있으면 매도 가능(1)입니다.
@@ -133,8 +133,8 @@ def auto_trading():
 
         # 매수
         if current_position == 0:
-            # 매수는 현재 시간(분)의 끝 자리가 5(분)이면 진행
-            if reminder_of_five:
+            # 매수는 현재 시간을 확인(def: check_time)한 다음 진행
+            if reminder_of_one:
                 trade_strategy_result = trading_strategy(get_data(), current_position)
 
                 logger.debug(f'trade_strategy_result : {trade_strategy_result}')
