@@ -65,18 +65,19 @@ def trading_strategy(
         }
 
     # 이동평균선 계산
-    df['MA50'] = df['close'].rolling(window=50).mean()
+    df['MA20'] = df['close'].rolling(window=20).mean()
+    # df['MA50'] = df['close'].rolling(window=50).mean()
     df['MA200'] = df['close'].rolling(window=200).mean()
 
-    # 50MA 기울기 계산
-    df['MA50_slope'] = df['MA50'].diff()  # diff() 함수를 사용하여 기울기 계산
+    # 20MA 기울기 계산
+    df['MA20_slope'] = df['MA20'].diff()  # diff() 함수를 사용하여 기울기 계산
 
     # # 골든 크로스 / 데드 크로스 확인
     # golden_cross = (df['MA50'].iloc[-2] < df['MA200'].iloc[-2]) and (df['MA50'].iloc[-1] > df['MA200'].iloc[-1])
     # dead_cross = (df['MA50'].iloc[-2] > df['MA200'].iloc[-2]) and (df['MA50'].iloc[-1] < df['MA200'].iloc[-1])
 
-    # 시장 상황 판단 (50MA와 200MA 비교)
-    is_bull_market = df['MA50'].iloc[-1] > df['MA200'].iloc[-1]
+    # 시장 상황 판단 (20MA와 200MA 비교)
+    is_bull_market = df['MA20'].iloc[-1] > df['MA200'].iloc[-1]
 
     print(f'is_bull_market : {is_bull_market}')
 
@@ -98,14 +99,14 @@ def trading_strategy(
 
     # 매수 가능
     if position == 0:
-        # 50MA가 200MA보다 작은 구간의 DataFrame 추출
-        under_50ma_df = df[df['MA50'] < df['MA200']].tail(50)  # 최근 50개만 확인
+        # 최근 20개의 DataFrame 추출
+        recent_df = df.tail(20)
 
-        # 해당 구간에서 50MA 기울기가 0보다 큰 적이 있는지 확인
-        ma50_slope_positive_after_dead_cross = (under_50ma_df['MA50_slope'] > 0).any()
+        # 해당 구간에서 20MA 기울기가 0보다 큰 적이 있는지 확인
+        ma20_slope_positive = (recent_df['MA20_slope'] > 0).any()
 
         # 데드 크로스 발생 후 50MA 기울기가 양수로 한번이라도 전환되기 전까지는 매수 금지
-        if not is_bull_market and not ma50_slope_positive_after_dead_cross:
+        if not is_bull_market and not ma20_slope_positive:
             print('데드 크로스 발생 후 50MA 기울기가 양수로 한번이라도 전환되기 전까지 매수 대기')
             return {
                 "signal": "",
@@ -122,7 +123,7 @@ def trading_strategy(
         # elif is_bull_market:
         #     # 상승장 매수 조건
 
-        recent_df: pd.DataFrame = df.tail(25)
+        # recent_df: pd.DataFrame = df.tail(25)
 
         # 이전 캔들이 볼린저밴드 하단 아래로 내려갔는지 확인
         prev_candle_below_bb = recent_df['close'].iloc[-2] <= recent_df['BB_lower'].iloc[-2]
