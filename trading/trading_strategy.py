@@ -99,8 +99,11 @@ def trading_strategy(
 
     # 매수 가능
     if position == 0:
+        # 20일 거래량 이동평균 계산 추가
+        df['Volume_MA20'] = df['volume'].rolling(window=20).mean()
+
         # 최근 20개의 DataFrame 추출
-        recent_df = df.tail(20)
+        recent_df: pd.DataFrame = df.tail(20)
 
         # 해당 구간에서 20MA 기울기가 0보다 큰 적이 있는지 확인
         ma20_slope_positive = (recent_df['MA20_slope'] > 0).any()
@@ -132,6 +135,24 @@ def trading_strategy(
         current_candle_is_positive = recent_df['close'].iloc[-1] >= recent_df['open'].iloc[-1]
 
         buy_condition = prev_candle_below_bb and current_candle_is_positive
+        buy_msg = ''
+
+        if buy_condition:
+            buy_msg = '이전 캔들이 볼린저밴드 하단 아래이고 최종 캔들이 양봉'
+        else:
+            # 다음 조건인 경우에도 매수하도록 설정
+            # 거래량이 20일 이동평균 초과
+            is_20ma_volume_up = recent_df['volume'].iloc[-1] > recent_df['Volume_MA20'].iloc[-1]
+
+            # 시작(open)값이 볼린저밴드 중간 아래이고, 종료(close) 값이 볼린저밴드 상단을 돌파
+            is_giant_bb_up = (
+                    recent_df['open'].iloc[-1] <= recent_df['BB_lower'].iloc[-1] and
+                    recent_df['close'].iloc[-1] >= recent_df['BB_upper'].iloc[-1]
+            )
+
+            if is_20ma_volume_up and is_giant_bb_up:
+                buy_condition = True
+                buy_msg = '거래량이 20MA를 초과하고, 캔들이 볼린저밴드 중간 아래에서 상단까지 돌파한 장대 양봉입니다.'
 
         # else:
         #     # 하락장 매수 조건
@@ -163,12 +184,10 @@ def trading_strategy(
         #     buy_condition = has_double_bottom and macd_turned_positive
 
         if buy_condition:
-            # print(f'buy_signal!! ({"상승장" if is_bull_market else "하락장"})')
-            print('buy_signal!!')
+            print(f'buy_signal! - {buy_msg}')
             return {
                 "signal": "buy",
-                # "message": f"{'상승장' if is_bull_market else '하락장'} 매수 조건에 부합"
-                "message": "매수 조건에 부합"
+                "message": f"매수 조건에 부합 - {buy_msg}"
             }
 
     # 매도 가능
