@@ -217,7 +217,7 @@ if __name__ == '__main__':
 
     # Background Scheduler 세팅
     scheduler = BackgroundScheduler()
-    scheduler.add_job(auto_trading, 'interval', minutes=1)  # 매분 체크
+    scheduler.add_job(auto_trading, 'cron', second=50)  # 매분 50초에 실행
     scheduler.start()
 
     try:
