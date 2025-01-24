@@ -99,47 +99,56 @@ def trading_strategy(
 
     # 매수 가능
     if position == 0:
+        buy_condition = False
+        buy_msg = ''
+
         # 20일 거래량 이동평균 계산 추가
         df['Volume_MA20'] = df['volume'].rolling(window=20).mean()
 
         # 최근 20개의 DataFrame 추출
         recent_df: pd.DataFrame = df.tail(20)
 
-        # 해당 구간에서 20MA 기울기가 0보다 큰 적이 있는지 확인
-        ma20_slope_positive = (recent_df['MA20_slope'] > 0).any()
+        if not is_bull_market:
+            recent_df_10: pd.DataFrame = df.tail(10)
 
-        # 데드 크로스 발생 후 50MA 기울기가 양수로 한번이라도 전환되기 전까지는 매수 금지
-        if not is_bull_market and not ma20_slope_positive:
-            print('데드 크로스 발생 후 50MA 기울기가 양수로 한번이라도 전환되기 전까지 매수 대기')
-            return {
-                "signal": "",
-                "message": ""
-            }
+            # 해당 구간에서 20MA 기울기가 0보다 큰 적이 있는지 확인
+            ma20_slope_positive = (recent_df_10['MA20_slope'] > 0).any()
 
-        # # 골든 크로스 발생 시 매수
-        # if golden_cross:
-        #     print('buy_signal - 골든 크로스 발생!')
-        #     return {
-        #         "signal": "buy",
-        #         "message": "골든 크로스 발생"
-        #     }
-        # elif is_bull_market:
-        #     # 상승장 매수 조건
+            if not ma20_slope_positive:
+                # 추가 매수 조건: RSI 30 미만 이후 MACD 히스토그램 양전환
+                rsi_under_30 = (recent_df['RSI'] < 30).any()
 
-        # recent_df: pd.DataFrame = df.tail(25)
+                # MACD 히스토그램 양전환 확인
+                macd_turned_positive = (
+                        recent_df['MACD_histogram'].iloc[-1] > recent_df['MACD_histogram'].iloc[-2] and
+                        (recent_df['MACD_histogram'].iloc[-1] > 0 > recent_df['MACD_histogram'].iloc[-2] or
+                         recent_df['MACD_histogram'].iloc[-1] > 0 > recent_df['MACD_histogram'].iloc[-3])
+                )
 
-        # 이전 캔들이 볼린저밴드 하단 아래로 내려갔는지 확인
-        prev_candle_below_bb = recent_df['close'].iloc[-2] <= recent_df['BB_lower'].iloc[-2]
+                print(f'rsi_under_30 : {rsi_under_30}')
+                print(f'macd_turned_positive : {macd_turned_positive}')
 
-        # 최종 캔들이 양봉인지 확인
-        current_candle_is_positive = recent_df['close'].iloc[-1] >= recent_df['open'].iloc[-1]
+                if rsi_under_30 and macd_turned_positive:
+                    buy_condition = True
+                    buy_msg = 'RSI 30 미만 이후 MACD 히스토그램 양전환'
+                else:
+                    print('데드 크로스 발생 후 20MA 기울기가 양수로 한번이라도 전환되기 전까지 매수 대기')
+                    return {
+                        "signal": "",
+                        "message": ""
+                    }
 
-        buy_condition = prev_candle_below_bb and current_candle_is_positive
-        buy_msg = ''
+        if not buy_condition:
+            # 이전 캔들이 볼린저밴드 하단 아래로 내려갔는지 확인
+            prev_candle_below_bb = recent_df['close'].iloc[-2] <= recent_df['BB_lower'].iloc[-2]
 
-        if buy_condition:
+            # 최종 캔들이 양봉인지 확인
+            current_candle_is_positive = recent_df['close'].iloc[-1] >= recent_df['open'].iloc[-1]
+
+            buy_condition = prev_candle_below_bb and current_candle_is_positive
             buy_msg = '이전 캔들이 볼린저밴드 하단 아래이고 최종 캔들이 양봉'
-        else:
+
+        if not buy_condition:
             # 다음 조건인 경우에도 매수하도록 설정
             # 거래량이 20일 이동평균 초과
             is_20ma_volume_up = recent_df['volume'].iloc[-1] > recent_df['Volume_MA20'].iloc[-1]
@@ -208,9 +217,9 @@ def trading_strategy(
         #         "message": "데드 크로스 발생"
         #     }
 
-        # 손절매 조건 (1% 손실)
+        # 손절매 조건 (0.69% 손실)
         current_price = df['close'].iloc[-1]
-        if current_price < buy_price * 0.99:
+        if current_price < buy_price * 0.9931:
             print('sell_signal - 손절매!!')
             return {
                 "signal": "sell",
