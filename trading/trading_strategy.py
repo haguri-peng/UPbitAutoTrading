@@ -109,44 +109,54 @@ def trading_strategy(
         recent_df: pd.DataFrame = df.tail(20)
 
         if not is_bull_market:
-            recent_df_10: pd.DataFrame = df.tail(10)
+            # recent_df_10: pd.DataFrame = df.tail(10)
+            #
+            # # 해당 구간에서 20MA 기울기가 0보다 큰 적이 있는지 확인
+            # ma20_slope_positive = (recent_df_10['MA20_slope'] > 0).any()
+            #
+            # if not ma20_slope_positive:
 
-            # 해당 구간에서 20MA 기울기가 0보다 큰 적이 있는지 확인
-            ma20_slope_positive = (recent_df_10['MA20_slope'] > 0).any()
+            # 추가 매수 조건: RSI 30 미만 이후 MACD 히스토그램 양전환
+            rsi_under_30 = (recent_df['RSI'] < 30).any()
 
-            if not ma20_slope_positive:
-                # 추가 매수 조건: RSI 30 미만 이후 MACD 히스토그램 양전환
-                rsi_under_30 = (recent_df['RSI'] < 30).any()
+            # MACD 히스토그램 양전환 확인
+            macd_turned_positive = (
+                    recent_df['MACD_histogram'].iloc[-1] > recent_df['MACD_histogram'].iloc[-2] and
+                    (recent_df['MACD_histogram'].iloc[-1] > 0 > recent_df['MACD_histogram'].iloc[-2] or
+                     recent_df['MACD_histogram'].iloc[-1] > 0 > recent_df['MACD_histogram'].iloc[-3])
+            )
 
-                # MACD 히스토그램 양전환 확인
-                macd_turned_positive = (
-                        recent_df['MACD_histogram'].iloc[-1] > recent_df['MACD_histogram'].iloc[-2] and
-                        (recent_df['MACD_histogram'].iloc[-1] > 0 > recent_df['MACD_histogram'].iloc[-2] or
-                         recent_df['MACD_histogram'].iloc[-1] > 0 > recent_df['MACD_histogram'].iloc[-3])
-                )
+            print(f'rsi_under_30 : {rsi_under_30}')
+            print(f'macd_turned_positive : {macd_turned_positive}')
 
-                print(f'rsi_under_30 : {rsi_under_30}')
-                print(f'macd_turned_positive : {macd_turned_positive}')
+            if rsi_under_30 and macd_turned_positive:
+                buy_condition = True
+                buy_msg = 'RSI 30 미만 이후 MACD 히스토그램 양전환'
+            # else:
+            #     print('데드 크로스 발생 후 20MA 기울기가 양수로 한번이라도 전환되기 전까지 매수 대기')
+            #     return {
+            #         "signal": "",
+            #         "message": ""
+            #     }
+        else:
+            # 시작(open)값이 20MA 아래이고, 종료(close) 값이 20MA를 돌파
+            is_20ma_up = (
+                    recent_df['open'].iloc[-1] < recent_df['MA20'].iloc[-1] < recent_df['close'].iloc[-1]
+            )
 
-                if rsi_under_30 and macd_turned_positive:
-                    buy_condition = True
-                    buy_msg = 'RSI 30 미만 이후 MACD 히스토그램 양전환'
-                else:
-                    print('데드 크로스 발생 후 20MA 기울기가 양수로 한번이라도 전환되기 전까지 매수 대기')
-                    return {
-                        "signal": "",
-                        "message": ""
-                    }
+            if is_20ma_up:
+                buy_condition = True
+                buy_msg = '시작(open)값이 20MA 보다 작고 종료(close) 값이 20MA를 돌파'
 
-        if not buy_condition:
-            # 이전 캔들이 볼린저밴드 하단 아래로 내려갔는지 확인
-            prev_candle_below_bb = recent_df['close'].iloc[-2] <= recent_df['BB_lower'].iloc[-2]
-
-            # 최종 캔들이 양봉인지 확인
-            current_candle_is_positive = recent_df['close'].iloc[-1] >= recent_df['open'].iloc[-1]
-
-            buy_condition = prev_candle_below_bb and current_candle_is_positive
-            buy_msg = '이전 캔들이 볼린저밴드 하단 아래이고 최종 캔들이 양봉'
+        # if not buy_condition:
+        #     # 이전 캔들이 볼린저밴드 하단 아래로 내려갔는지 확인
+        #     prev_candle_below_bb = recent_df['close'].iloc[-2] <= recent_df['BB_lower'].iloc[-2]
+        #
+        #     # 최종 캔들이 양봉인지 확인
+        #     current_candle_is_positive = recent_df['close'].iloc[-1] >= recent_df['open'].iloc[-1]
+        #
+        #     buy_condition = prev_candle_below_bb and current_candle_is_positive
+        #     buy_msg = '이전 캔들이 볼린저밴드 하단 아래이고 최종 캔들이 양봉'
 
         if not buy_condition:
             # 다음 조건인 경우에도 매수하도록 설정
@@ -155,7 +165,7 @@ def trading_strategy(
 
             # 시작(open)값이 볼린저밴드 중간 아래이고, 종료(close) 값이 볼린저밴드 상단을 돌파
             is_giant_bb_up = (
-                    recent_df['open'].iloc[-1] <= recent_df['BB_lower'].iloc[-1] and
+                    recent_df['open'].iloc[-1] <= recent_df['BB_mid'].iloc[-1] and
                     recent_df['close'].iloc[-1] >= recent_df['BB_upper'].iloc[-1]
             )
 
@@ -209,14 +219,6 @@ def trading_strategy(
                 "message": ""
             }
 
-        # # 데드 크로스 발생 시 매도
-        # if dead_cross:
-        #     print('sell_signal - 데드 크로스 발생!')
-        #     return {
-        #         "signal": "sell",
-        #         "message": "데드 크로스 발생"
-        #     }
-
         # 손절매 조건 (0.69% 손실)
         current_price = df['close'].iloc[-1]
         if current_price < buy_price * 0.9931:
@@ -239,37 +241,47 @@ def trading_strategy(
 
         # 최소 2개의 캔들이 있어야 인덱싱 가능
         if len(after_buy_df) >= 2:
-            # if is_bull_market:
-            # 매수 후 볼린저밴드 상단 돌파 여부 확인
-            has_breached_upper_band = (after_buy_df['close'] > after_buy_df['BB_upper']).any()
+            if is_bull_market:
+                # 매수 후 볼린저밴드 상단 돌파 여부 확인
+                has_breached_upper_band = (after_buy_df['close'] > after_buy_df['BB_upper']).any()
 
-            # 한번이라도 볼린저밴드 상단을 돌파한 경우, 중심선 아래로 하락 시 매도
-            if has_breached_upper_band:
-                if after_buy_df['close'].iloc[-1] < after_buy_df['BB_mid'].iloc[-1]:
-                    print('sell_signal - 볼린저밴드 상단 돌파 후 중심선 아래로 하락')
+                # 한번이라도 볼린저밴드 상단을 돌파한 경우, 중심선 아래로 하락 시 매도
+                if has_breached_upper_band:
+                    if after_buy_df['close'].iloc[-1] < after_buy_df['BB_mid'].iloc[-1]:
+                        print('sell_signal - 볼린저밴드 상단 돌파 후 중심선 아래로 하락')
+                        return {
+                            "signal": "sell",
+                            "message": "볼린저밴드 상단 돌파 후 중심선 아래로 하락"
+                        }
+
+                # # 상승장 매도 조건: RSI 72 초과 후 MACD 하향 교차
+                # rsi_above_72 = (after_buy_df['RSI'] > 72).any()
+                #
+                # # MACD 하향 교차 검증
+                # macd_cross_down = (
+                #         after_buy_df['MACD'].iloc[-1] < after_buy_df['MACD_signal'].iloc[-1] and
+                #         after_buy_df['MACD'].iloc[-2] >= after_buy_df['MACD_signal'].iloc[-2]
+                # )
+                #
+                # print(f'rsi_above_72 : {rsi_above_72}')
+                # print(f'macd_cross_down : {macd_cross_down}')
+                #
+                # if rsi_above_72 and macd_cross_down:
+                #     print('sell_signal - [상승장] RSI > 72 once and MACD cross down')
+                #     return {
+                #         "signal": "sell",
+                #         "message": "[상승장] RSI > 72 once and MACD cross down"
+                #     }
+
+            else:
+                # 이전 캔들이 볼린저밴드 상단을 돌파한 경우 매도
+                if after_buy_df['close'].iloc[-2] > after_buy_df['BB_upper'].iloc[-2]:
+                    print('sell_signal - 이전 캔들이 볼린저밴드 상단 돌파')
                     return {
                         "signal": "sell",
-                        "message": "볼린저밴드 상단 돌파 후 중심선 아래로 하락"
+                        "message": "이전 캔들이 볼린저밴드 상단 돌파"
                     }
 
-            # 상승장 매도 조건: RSI 72 초과 후 MACD 하향 교차
-            rsi_above_72 = (after_buy_df['RSI'] > 72).any()
-
-            # MACD 하향 교차 검증
-            macd_cross_down = (
-                    after_buy_df['MACD'].iloc[-1] < after_buy_df['MACD_signal'].iloc[-1] and
-                    after_buy_df['MACD'].iloc[-2] >= after_buy_df['MACD_signal'].iloc[-2]
-            )
-
-            print(f'rsi_above_72 : {rsi_above_72}')
-            print(f'macd_cross_down : {macd_cross_down}')
-
-            if rsi_above_72 and macd_cross_down:
-                print('sell_signal - [상승장] RSI > 72 once and MACD cross down')
-                return {
-                    "signal": "sell",
-                    "message": "[상승장] RSI > 72 once and MACD cross down"
-                }
         else:
             print('매수 이후 데이터 부족')
             return {
