@@ -1,6 +1,6 @@
 import sys, os, math, time
 import logging.config
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 
 # 현재 스크립트의 디렉토리 경로를 얻습니다.
@@ -21,7 +21,8 @@ sys.path.append(utils_dir)
 # import
 from account.my_account import get_my_exchange_account
 from upbit_data.candle import get_min_candle_data
-from trading.trading_strategy import trading_strategy
+# from trading.trading_strategy import trading_strategy
+from trading.trading_strategy2 import trading_strategy
 from trading.trade import buy_market, sell_market, get_open_order
 from utils.email_utils import send_email
 
@@ -98,20 +99,20 @@ def check_time():
     # 현재 분(minute) 추출
     current_minute = current_time.minute
 
-    # 현재 분(minute)이 3으로 나눴을 때 2인지 확인 (3n + 2)
-    is_reminder_of_two = current_minute % 3 == 2
+    # 현재 분(minute)이 5로 나눠지는지 확인
+    is_multiple_of_five = current_minute % 5 == 0
 
     logger.debug(f'current_time : {current_time}, current_minute : {current_minute}')
-    logger.debug(f'is_reminder_of_two : {is_reminder_of_two}')
+    logger.debug(f'is_multiple_of_five : {is_multiple_of_five}')
 
-    return is_reminder_of_two
+    return is_multiple_of_five
 
 
 def get_data():
-    # 도지코인(KRW-DOGE) 1분봉 가져오기
-    doge_1min_data = get_min_candle_data('KRW-DOGE', 1)
+    # 도지코인(KRW-DOGE) 5분봉 가져오기
+    doge_5min_data = get_min_candle_data('KRW-DOGE', 5)
 
-    return doge_1min_data
+    return doge_5min_data
 
 
 def auto_trading():
@@ -120,7 +121,8 @@ def auto_trading():
         account_info = get_account_info()
 
         # 시간 확인
-        # reminder_of_two = check_time()
+        # reminder_of_four = check_time()
+        multiple_of_five = check_time()
 
         # 포지션 확인 (0: 매수 가능, 1: 매도 가능)
         # 현재 계좌에 매수된 코인 정보가 없으면 '매수 가능(0)', 있으면 매도 가능(1)입니다.
@@ -134,8 +136,8 @@ def auto_trading():
         # 매수
         if current_position == 0:
             # 매수는 현재 시간을 확인(def: check_time)한 다음 진행
-            # if reminder_of_two:
-            if True:
+            if multiple_of_five:
+                # if True:
                 trade_strategy_result = trading_strategy(get_data(), current_position)
 
                 logger.debug(f'trade_strategy_result : {trade_strategy_result}')
@@ -151,7 +153,9 @@ def auto_trading():
                     if buy_result['uuid'].notnull()[0]:
                         # 시장가로 주문하기 때문에 uuid 값이 있으면 정상적으로 처리됐다고 가정한다.
                         # 매수하면서 전역변수인 매수시간을 세팅한다.
-                        buy_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        # 매수시간은 이전 캔들 시간으로 세팅
+                        min5_ago = datetime.now() - timedelta(minutes=5)
+                        buy_time = min5_ago.replace(second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S')
                         logger.info(f'[KRW-DOGE] {account_info["krw_available"]}원 매수 하였습니다.')
 
                         send_email('[KRW-DOGE] 시장가 매수', trade_strategy_result['message'])
@@ -217,7 +221,7 @@ if __name__ == '__main__':
 
     # Background Scheduler 세팅
     scheduler = BackgroundScheduler()
-    scheduler.add_job(auto_trading, 'cron', second=50)  # 매분 50초에 실행
+    scheduler.add_job(auto_trading, 'cron', second=5)  # 매분 5초에 실행
     scheduler.start()
 
     try:
