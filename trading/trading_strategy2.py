@@ -24,7 +24,10 @@ def trading_strategy(
 
     ===============================================================================================
     # 매수/매도 플랜 설명
-    - 작업중
+    - EMA5가 EMA20을 상향 교차하는 경우 매수
+    - STOPLOSS는 매수 시점 바로 이전의 최종 3개의 캔들의 시작(open)에서 최솟값
+    - STOPLOSS를 제외하고 매수 이후에 캔들 1개 정도의 시간이 흐른 뒤 체크
+    - EMA5이 EMA10에 하향 교차 시 매도
 
     # 계산에 사용될 df 설명
     - close: 종가
@@ -49,10 +52,11 @@ def trading_strategy(
 
     # EMA 계산
     df['EMA5'] = df['close'].ewm(span=5, adjust=False).mean()
+    df['EMA10'] = df['close'].ewm(span=10, adjust=False).mean()
     df['EMA20'] = df['close'].ewm(span=20, adjust=False).mean()
 
     # EMA 기울기 계산
-    df['EMA10_slope'] = df['EMA5'].diff()  # diff() 함수를 사용하여 기울기 계산
+    df['EMA10_slope'] = df['EMA10'].diff()  # diff() 함수를 사용하여 기울기 계산
 
     # MACD 계산
     macd = MACD(df['close'])
@@ -116,7 +120,7 @@ def trading_strategy(
 
         if len(after_buy_df) >= 2:
             # STOPLOSS
-            # STOPLOSS는 매수 시점 바로 이전의 최종 3개의 캔들의 시작(open)에서 최소값
+            # STOPLOSS는 매수 시점 바로 이전의 최종 3개의 캔들의 시작(open)에서 최솟값
             # stop_loss_price = after_buy_df['open'].iloc[0]
             last3_df: pd.Series = df['open'].tail(4).iloc[:-1]
             stop_loss_price = last3_df.min()
@@ -132,26 +136,26 @@ def trading_strategy(
                     "message": "STOPLOSS"
                 }
 
-            # 해당 구간에서 10EMA 기울기가 꺾이는지 확인
-            ema10_slope_negative = (after_buy_df['EMA10_slope'] < 0).any()
-
-            print(f'ema10_slope_negative : {ema10_slope_negative}')
-
-            # 매수 이후에 캔들 1개 정도의 시간이 흐른 뒤 체크
-            if len(after_buy_df) >= 3 and ema10_slope_negative:
-                print('sell_signal - 10EMA 기울기가 음(-)으로 전환')
-                return {
-                    "signal": "sell",
-                    "message": "10EMA 기울기가 음(-)으로 전환"
-                }
-
-            # # EMA5이 EMA20에 하향 교차
-            # if df['EMA5'].iloc[-2] < df['EMA20'].iloc[-2]:
-            #     print('sell_signal - EMA5이 EMA20에 하향 교차')
+            # # 해당 구간에서 10EMA 기울기가 꺾이는지 확인
+            # ema10_slope_negative = (after_buy_df['EMA10_slope'] < 0).any()
+            #
+            # print(f'ema10_slope_negative : {ema10_slope_negative}')
+            #
+            # # 매수 이후에 캔들 1개 정도의 시간이 흐른 뒤 체크
+            # if len(after_buy_df) >= 3 and ema10_slope_negative:
+            #     print('sell_signal - 10EMA 기울기가 음(-)으로 전환')
             #     return {
             #         "signal": "sell",
-            #         "message": "EMA5이 EMA20에 하향 교차"
+            #         "message": "10EMA 기울기가 음(-)으로 전환"
             #     }
+
+            # EMA5이 EMA10에 하향 교차
+            if len(after_buy_df) >= 3 and df['EMA5'].iloc[-1] < df['EMA10'].iloc[-1]:
+                print('sell_signal - EMA5이 EMA10에 하향 교차')
+                return {
+                    "signal": "sell",
+                    "message": "EMA5이 EMA10에 하향 교차"
+                }
         else:
             print('매수 이후 데이터 부족')
             return {
