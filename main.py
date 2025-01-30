@@ -164,46 +164,48 @@ def auto_trading():
 
         # 매도
         elif current_position == 1:
-            trade_strategy_result = trading_strategy(get_data(), current_position, buy_time,
-                                                     account_info['doge_buy_price'])
+            if multiple_of_five:
+                trade_strategy_result = trading_strategy(get_data(), current_position, buy_time,
+                                                         account_info['doge_buy_price'])
 
-            logger.debug(f'trade_strategy_result : {trade_strategy_result}')
+                logger.debug(f'trade_strategy_result : {trade_strategy_result}')
 
-            if trade_strategy_result['signal'] == 'sell':
-                sell_result = sell_market('KRW-DOGE', account_info['doge_balance'])
-                if sell_result['uuid'].notnull()[0]:
-                    while True:
-                        open_order_df = get_open_order('KRW-DOGE', 'wait')
-                        print(open_order_df)
+                if trade_strategy_result['signal'] == 'sell':
+                    sell_result = sell_market('KRW-DOGE', account_info['doge_balance'])
+                    if sell_result['uuid'].notnull()[0]:
+                        while True:
+                            open_order_df = get_open_order('KRW-DOGE', 'wait')
+                            print(open_order_df)
 
-                        time.sleep(5)  # 5초 대기
+                            time.sleep(5)  # 5초 대기
 
-                        # wait 중인 거래가 없으면 반복 중단
-                        if len(open_order_df) == 0:
-                            break
+                            # wait 중인 거래가 없으면 반복 중단
+                            if len(open_order_df) == 0:
+                                break
 
-                    # 매도 이후에 매매수익을 확인하기 위해 계좌정보를 다시 조회
-                    after_sell_account = get_my_exchange_account()
-                    print(after_sell_account)
+                        # 매도 이후에 매매수익을 확인하기 위해 계좌정보를 다시 조회
+                        after_sell_account = get_my_exchange_account()
+                        print(after_sell_account)
 
-                    # 원화 잔고 확인
-                    trade_result = 0
-                    if 'KRW' in after_sell_account['currency'].values:
-                        after_sell_krw_bal = math.floor(
-                            float(after_sell_account[after_sell_account['currency'] == 'KRW']['balance'].values[0]))
-                        trade_result = math.floor(after_sell_krw_bal - krw_balance)
+                        # 원화 잔고 확인
+                        trade_result = 0
+                        if 'KRW' in after_sell_account['currency'].values:
+                            after_sell_krw_bal = math.floor(
+                                float(after_sell_account[after_sell_account['currency'] == 'KRW']['balance'].values[0]))
+                            trade_result = math.floor(after_sell_krw_bal - krw_balance)
 
-                    logger.info(f'[KRW-DOGE] {account_info["doge_balance"]} 매도 하였습니다.')
-                    logger.info(f'매매수익은 {trade_result} 입니다.')
+                        logger.info(f'[KRW-DOGE] {account_info["doge_balance"]} 매도 하였습니다.')
+                        logger.info(f'매매수익은 {trade_result} 입니다.')
 
-                    # 매도하면서 전역변수를 초기화한다.
-                    buy_time = None
-                    krw_balance = 0
+                        # 매도하면서 전역변수를 초기화한다.
+                        buy_time = None
+                        krw_balance = 0
 
-                    send_email('[KRW-DOGE] 시장가 매도', f'{trade_strategy_result["message"]}\n매매수익은 {trade_result} 입니다.')
-                else:
-                    logger.error('매도가 정상적으로 처리되지 않았습니다.')
-                    send_email('매도 중 에러 발생', '매도 중 에러가 발생하였습니다. 확인해주세요.')
+                        send_email('[KRW-DOGE] 시장가 매도',
+                                   f'{trade_strategy_result["message"]}\n매매수익은 {trade_result} 입니다.')
+                    else:
+                        logger.error('매도가 정상적으로 처리되지 않았습니다.')
+                        send_email('매도 중 에러 발생', '매도 중 에러가 발생하였습니다. 확인해주세요.')
 
     except ValueError as ve:
         logger.error(f'ValueError : {ve}')
