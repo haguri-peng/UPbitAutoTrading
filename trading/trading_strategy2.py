@@ -1,7 +1,8 @@
-# import math
 import pandas as pd
+import numpy as np
 from typing import Optional
 from ta.trend import MACD
+from ta.volatility import BollingerBands
 
 
 def trading_strategy(
@@ -24,10 +25,9 @@ def trading_strategy(
 
     ===============================================================================================
     # 매수/매도 플랜 설명
-    - EMA5가 EMA20을 상향 교차하는 경우 매수
-    - STOPLOSS는 매수 시점 바로 이전의 최종 3개의 캔들의 시작(open)에서 최솟값
-    - STOPLOSS를 제외하고 매수 이후에 캔들 1개 정도의 시간이 흐른 뒤 체크
-    - EMA5이 EMA10에 하향 교차 시 매도
+    - 최근 캔들 중에서 볼린저밴드 하단 아래로 내려간 적이 있고, 5EMA 기울기가 양(+)으로 전환할 때 매소
+    - 손절매는 0.5% 손실 시 진행
+    - 매수 이후에 10EMA가 20EMA에 하향 교차하는 경우 매도
 
     # 계산에 사용될 df 설명
     - close: 종가
@@ -50,19 +50,51 @@ def trading_strategy(
             "message": ""
         }
 
+    # 이동평균선 계산
+    df['MA20'] = df['close'].rolling(window=20).mean()
+    df['MA200'] = df['close'].rolling(window=200).mean()
+
+    # # 시장 상황 판단 (20MA와 200MA 비교)
+    # is_bull_market = df['MA20'].iloc[-2] > df['MA200'].iloc[-2]
+
     # EMA 계산
     df['EMA5'] = df['close'].ewm(span=5, adjust=False).mean()
     df['EMA10'] = df['close'].ewm(span=10, adjust=False).mean()
     df['EMA20'] = df['close'].ewm(span=20, adjust=False).mean()
 
     # EMA 기울기 계산
-    df['EMA10_slope'] = df['EMA10'].diff()  # diff() 함수를 사용하여 기울기 계산
+    df['EMA5_slope'] = df['EMA5'].diff()  # diff() 함수를 사용하여 기울기 계산
 
     # MACD 계산
     macd = MACD(df['close'])
     df['MACD'] = macd.macd()
     df['MACD_signal'] = macd.macd_signal()
     df['MACD_histogram'] = macd.macd_diff()
+
+    # 볼린저밴드 계산
+    bollinger = BollingerBands(df['close'])
+    df['BB_upper'] = bollinger.bollinger_hband()
+    df['BB_mid'] = bollinger.bollinger_mavg()
+    df['BB_lower'] = bollinger.bollinger_lband()
+
+    # 최근 20개의 DataFrame 추출
+    recent_df: pd.DataFrame = df.tail(20)
+
+    # '10EMA, 20MA' 열의 기울기 계산
+    df['EMA10_slope'] = df['EMA10'].diff()
+    diffs = recent_df['MA20'].diff()
+
+    # 기울기가 음(-)인 경우와 양(+)인 경우 개수 세기
+    negative_cnt = np.sum(np.where(diffs < 0, 1, 0))
+    positive_cnt = np.sum(np.where(diffs > 0, 1, 0))
+
+    is_positive_20ma_slope = positive_cnt > negative_cnt
+
+    # 결과 출력
+    print('[20MA 기울기 확인]')
+    print(f'음(-)인 기울기 개수 : {negative_cnt}')
+    print(f'양(+)인 기울기 개수 : {positive_cnt}')
+    print(f'is_positive_20ma_slope : {is_positive_20ma_slope}')
 
     # 매수 가능
     if position == 0:
@@ -76,21 +108,33 @@ def trading_strategy(
         #         df['MACD_histogram'].iloc[-2] > -0.05
         # )
 
-        # EMA5가 EMA20을 상향 교차
-        ema_cross_up = (
-                df['EMA5'].iloc[-3] < df['EMA20'].iloc[-3] and
-                df['EMA5'].iloc[-2] >= df['EMA20'].iloc[-2]
+        # EMA가 정배열(5, 10, 20이 순서대로)인지 확인
+        is_ema_ordered = (
+                df['EMA5'].iloc[-2] > df['EMA10'].iloc[-2] > df['EMA20'].iloc[-2]
         )
 
-        # print(f'macd_turned_positive : {macd_turned_positive}')
-        print(f'ema_cross_up : {ema_cross_up}')
-        print(f"EMA5 : {df['EMA5'].iloc[-2]}")
-        print(f"EMA20 : {df['EMA20'].iloc[-2]}")
+        print('[EMA 값 확인]')
+        print(f'is_ema_ordered : {is_ema_ordered}')
+        print(f"5EMA : {df['EMA5'].iloc[-2]}")
+        print(f"10EMA : {df['EMA10'].iloc[-2]}")
+        print(f"20EMA : {df['EMA20'].iloc[-2]}")
 
-        # if macd_turned_positive and ema_cross_up:
-        if ema_cross_up:
+        # 최근 20개의 캔들(종가 기준) 중에서 볼린저밴드 하단 아래로 내려갔는지 확인
+        recent_candle_below_bb = (recent_df['close'][:-1] < recent_df['BB_lower'][:-1]).any()
+
+        # 10EMA 기울기가 양(+)으로 바뀌었는지 확인
+        is_positive_10ema_slope = df['EMA10_slope'].iloc[-2] > 0
+
+        print(f'recent_candle_below_bb : {recent_candle_below_bb}')
+        print(f'is_positive_10ema_slope : {is_positive_10ema_slope}')
+
+        # if is_positive_20ma_slope and is_ema_ordered:
+        # if is_ema_ordered:
+        if recent_candle_below_bb and is_positive_10ema_slope:
             buy_condition = True
-            buy_msg = 'EMA5가 EMA20을 상향 교차'
+            # buy_msg = '20MA 기울기가 양(+)으로 바뀌고 EMA가 정배열'
+            # buy_msg = 'EMA가 정배열'
+            buy_msg = '최근 캔들 중에서 볼린저밴드 하단 아래로 내려간 적이 있고, 5EMA 기울기가 양(+)으로 전환'
 
         if buy_condition:
             print(f'buy_signal! - {buy_msg}')
@@ -119,42 +163,42 @@ def trading_strategy(
         print(f'len(after_buy_df) : {len(after_buy_df)}')
 
         if len(after_buy_df) >= 2:
-            # STOPLOSS
-            # STOPLOSS는 매수 시점 바로 이전의 최종 3개의 캔들의 시작(open)에서 최솟값
-            # stop_loss_price = after_buy_df['open'].iloc[0]
-            last3_df: pd.Series = df['open'].tail(4).iloc[:-1]
-            stop_loss_price = last3_df.min()
-            current_price = df['close'].iloc[-1]
-
-            print(f'stop_loss_price : {stop_loss_price}')
-            print(f'current_price : {current_price}')
-
-            if current_price < stop_loss_price:
-                print('sell_signal - STOPLOSS')
-                return {
-                    "signal": "sell",
-                    "message": "STOPLOSS"
-                }
-
-            # # 해당 구간에서 10EMA 기울기가 꺾이는지 확인
-            # ema10_slope_negative = (after_buy_df['EMA10_slope'] < 0).any()
+            # # STOPLOSS
+            # # STOPLOSS는 매수 시점 바로 이전의 최종 3개의 캔들의 시작(open)에서 최솟값
+            # last3_df: pd.Series = df['open'].tail(4).iloc[:-1]
+            # stop_loss_price = last3_df.min()
+            # current_price = df['close'].iloc[-1]
             #
-            # print(f'ema10_slope_negative : {ema10_slope_negative}')
+            # print(f'stop_loss_price : {stop_loss_price}')
+            # print(f'current_price : {current_price}')
             #
-            # # 매수 이후에 캔들 1개 정도의 시간이 흐른 뒤 체크
-            # if len(after_buy_df) >= 3 and ema10_slope_negative:
-            #     print('sell_signal - 10EMA 기울기가 음(-)으로 전환')
+            # if current_price < stop_loss_price:
+            #     print('sell_signal - STOPLOSS')
             #     return {
             #         "signal": "sell",
-            #         "message": "10EMA 기울기가 음(-)으로 전환"
+            #         "message": "STOPLOSS"
             #     }
 
-            # EMA5이 EMA10에 하향 교차
-            if len(after_buy_df) >= 3 and df['EMA5'].iloc[-1] < df['EMA10'].iloc[-1]:
-                print('sell_signal - EMA5이 EMA10에 하향 교차')
+            current_price = df['close'].iloc[-2]
+
+            print(f'current_price : {current_price}')
+
+            # 손절매 조건 (0.5% 손실)
+            if current_price < buy_price * 0.995:
+                print('sell_signal - 손절매!!')
                 return {
                     "signal": "sell",
-                    "message": "EMA5이 EMA10에 하향 교차"
+                    "message": "손절매(0.5% 손실)!!"
+                }
+
+            # 10EMA가 20EMA에 하향 교차
+            if (len(after_buy_df) >= 3 and
+                    df['EMA10'].iloc[-3] >= df['EMA20'].iloc[-3] and
+                    df['EMA10'].iloc[-2] < df['EMA20'].iloc[-2]):
+                print('sell_signal - 10EMA가 20EMA에 하향 교차')
+                return {
+                    "signal": "sell",
+                    "message": "10EMA가 20EMA에 하향 교차"
                 }
         else:
             print('매수 이후 데이터 부족')
