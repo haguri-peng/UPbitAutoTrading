@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 from ta.trend import MACD
+from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 
 
@@ -62,8 +63,14 @@ def trading_strategy(
     df['EMA10'] = df['close'].ewm(span=10, adjust=False).mean()
     df['EMA20'] = df['close'].ewm(span=20, adjust=False).mean()
 
-    # EMA 기울기 계산
-    df['EMA5_slope'] = df['EMA5'].diff()  # diff() 함수를 사용하여 기울기 계산
+    # 200MA 기울기 계산
+    df['MA200_slope'] = df['MA200'].diff()  # diff() 함수를 사용하여 기울기 계산
+
+    is_positive_200ma_slope = df['MA200_slope'].iloc[-2] > 0
+
+    # RSI 계산
+    rsi_indicator = RSIIndicator(df['close'], window=14)
+    df['RSI'] = rsi_indicator.rsi()
 
     # MACD 계산
     macd = MACD(df['close'])
@@ -80,8 +87,7 @@ def trading_strategy(
     # 최근 20개의 DataFrame 추출
     recent_df: pd.DataFrame = df.tail(20)
 
-    # '10EMA, 20MA' 열의 기울기 계산
-    df['EMA10_slope'] = df['EMA10'].diff()
+    # 20MA 기울기 계산
     diffs = recent_df['MA20'].diff()
 
     # 기울기가 음(-)인 경우와 양(+)인 경우 개수 세기
@@ -91,10 +97,16 @@ def trading_strategy(
     is_positive_20ma_slope = positive_cnt > negative_cnt
 
     # 결과 출력
-    print('[20MA 기울기 확인]')
+    print('[20MA, 200MA 기울기 확인]')
     print(f'음(-)인 기울기 개수 : {negative_cnt}')
     print(f'양(+)인 기울기 개수 : {positive_cnt}')
     print(f'is_positive_20ma_slope : {is_positive_20ma_slope}')
+    print(f'is_positive_200ma_slope : {is_positive_200ma_slope}')
+
+    # EMA 기울기 계산
+    df['EMA5_slope'] = df['EMA5'].diff()
+    df['EMA10_slope'] = df['EMA10'].diff()
+    df['EMA20_slope'] = df['EMA20'].diff()
 
     # 매수 가능
     if position == 0:
@@ -108,13 +120,7 @@ def trading_strategy(
         #         df['MACD_histogram'].iloc[-2] > -0.05
         # )
 
-        # EMA가 정배열(5, 10, 20이 순서대로)인지 확인
-        is_ema_ordered = (
-                df['EMA5'].iloc[-2] > df['EMA10'].iloc[-2] > df['EMA20'].iloc[-2]
-        )
-
         print('[EMA 값 확인]')
-        print(f'is_ema_ordered : {is_ema_ordered}')
         print(f"5EMA : {df['EMA5'].iloc[-2]}")
         print(f"10EMA : {df['EMA10'].iloc[-2]}")
         print(f"20EMA : {df['EMA20'].iloc[-2]}")
@@ -122,19 +128,28 @@ def trading_strategy(
         # 최근 20개의 캔들(종가 기준) 중에서 볼린저밴드 하단 아래로 내려갔는지 확인
         recent_candle_below_bb = (recent_df['close'][:-1] < recent_df['BB_lower'][:-1]).any()
 
-        # 10EMA 기울기가 양(+)으로 바뀌었는지 확인
-        is_positive_10ema_slope = df['EMA10_slope'].iloc[-2] > 0
+        # EMA 기울기가 양(+)으로 모두 바뀌었는지 확인
+        is_positive_all_ema_slope = (
+                df['EMA5_slope'].iloc[-2] > 0 and
+                df['EMA10_slope'].iloc[-2] > 0 and
+                df['EMA20_slope'].iloc[-2] > 0
+        )
+
+        # RSI 30 미만 확인
+        rsi_under_30 = (recent_df['RSI'] < 30).any()
 
         print(f'recent_candle_below_bb : {recent_candle_below_bb}')
-        print(f'is_positive_10ema_slope : {is_positive_10ema_slope}')
+        print(f'is_positive_all_ema_slope : {is_positive_all_ema_slope}')
+        print(f'rsi_under_30 : {rsi_under_30}')
 
-        # if is_positive_20ma_slope and is_ema_ordered:
-        # if is_ema_ordered:
-        if recent_candle_below_bb and is_positive_10ema_slope:
-            buy_condition = True
-            # buy_msg = '20MA 기울기가 양(+)으로 바뀌고 EMA가 정배열'
-            # buy_msg = 'EMA가 정배열'
-            buy_msg = '최근 캔들 중에서 볼린저밴드 하단 아래로 내려간 적이 있고, 5EMA 기울기가 양(+)으로 전환'
+        if recent_candle_below_bb and is_positive_all_ema_slope:
+            if is_positive_200ma_slope:
+                buy_condition = True
+                buy_msg = '[상승장] 최근 캔들 중에서 볼린저밴드 하단 아래로 내려간 적이 있고, 10EMA 기울기가 양(+)으로 전환'
+            else:
+                if rsi_under_30:
+                    buy_condition = True
+                    buy_msg = '[하락장] 최근 캔들 중에서 볼린저밴드 하단 아래로 내려간 적이 있고, 10EMA 기울기가 양(+)으로 전환'
 
         if buy_condition:
             print(f'buy_signal! - {buy_msg}')
@@ -183,22 +198,29 @@ def trading_strategy(
 
             print(f'current_price : {current_price}')
 
-            # 손절매 조건 (0.5% 손실)
-            if current_price < buy_price * 0.995:
+            # 손절매 조건 (0.6942% 손실)
+            if current_price < buy_price * 0.993058:
                 print('sell_signal - 손절매!!')
                 return {
                     "signal": "sell",
-                    "message": "손절매(0.5% 손실)!!"
+                    "message": "손절매(0.6942% 손실)!!"
                 }
 
-            # 10EMA가 20EMA에 하향 교차
+            # 이전 캔들의 EMA가 정배열(5, 10, 20이 순서대로)인지 확인
+            is_bef_ema_ordered = (
+                    df['EMA5'].iloc[-3] > df['EMA10'].iloc[-3] > df['EMA20'].iloc[-3]
+            )
+
+            print(f'is_bef_ema_ordered : {is_bef_ema_ordered}')
+
+            # 5EMA가 10EMA에 하향 교차
             if (len(after_buy_df) >= 3 and
-                    df['EMA10'].iloc[-3] >= df['EMA20'].iloc[-3] and
-                    df['EMA10'].iloc[-2] < df['EMA20'].iloc[-2]):
-                print('sell_signal - 10EMA가 20EMA에 하향 교차')
+                    is_bef_ema_ordered and
+                    df['EMA5'].iloc[-2] < df['EMA10'].iloc[-2]):
+                print('sell_signal - 5EMA가 10EMA에 하향 교차')
                 return {
                     "signal": "sell",
-                    "message": "10EMA가 20EMA에 하향 교차"
+                    "message": "5EMA가 10EMA에 하향 교차"
                 }
         else:
             print('매수 이후 데이터 부족')
