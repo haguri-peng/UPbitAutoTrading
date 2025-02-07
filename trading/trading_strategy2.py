@@ -84,6 +84,16 @@ def trading_strategy(
     df['BB_mid'] = bollinger.bollinger_mavg()
     df['BB_lower'] = bollinger.bollinger_lband()
 
+    # 볼린저밴드 영역 계산
+    df['BB_range'] = df['BB_upper'] - df['BB_lower']
+
+    # 양봉 캔들의 크기가 볼린저밴드 영역의 절반을 넘는지 확인
+    df['candle_size'] = df['close'] - df['open']
+    df['is_big_bull'] = (df['candle_size'] > df['BB_range'] / 2) & (df['close'] > df['open'])
+
+    # 20일 거래량 이동평균 계산
+    df['Volume_MA20'] = df['volume'].rolling(window=20).mean()
+
     # 최근 20개의 DataFrame 추출
     recent_df: pd.DataFrame = df.tail(20)
 
@@ -150,6 +160,20 @@ def trading_strategy(
                 if rsi_under_30:
                     buy_condition = True
                     buy_msg = '[하락장] 최근 캔들 중에서 볼린저밴드 하단 아래로 내려간 적이 있고, 10EMA 기울기가 양(+)으로 전환'
+
+        if not buy_condition:
+            # 최근 캔들이 큰 양봉인지 확인
+            is_big_bull_candle = recent_df['is_big_bull'].iloc[-2]
+
+            # 거래량이 20일 거래량 이동평균을 넘어서는지 확인
+            is_over_20ma_vol = recent_df['volume'].iloc[-2] > recent_df['Volume_MA20'].iloc[-2]
+
+            print(f'is_big_bull_candle : {is_big_bull_candle}')
+            print(f'is_over_20ma_vol : {is_over_20ma_vol}')
+
+            if is_big_bull_candle and is_over_20ma_vol:
+                buy_condition = True
+                buy_msg = '볼린저밴드 반을 넘는 거대한 양봉이고 거래량도 20일 평균을 넘어섬'
 
         if buy_condition:
             print(f'buy_signal! - {buy_msg}')
