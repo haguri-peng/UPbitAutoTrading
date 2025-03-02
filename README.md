@@ -8,8 +8,10 @@
 
 ## 진행사항
 
-- 현재 추가로 [매매전략](/trading/trading_strategy2.py)을 추가해서 테스트를 진행하고 있습니다.
-- 기존 전략으로 수익이 잘 나지 않아 다른 전략으로 바꿨는데, 테스트하면서 10% 더 날라갔네요. 😂
+- [볼린저밴드 매매전략](/trading/bollinger_band_breakout.py)을 추가해서 안정화 중입니다.
+- 이번 전략으로는 야금야금 수익을 내고 있습니다. 😊
+- 인기 있는 매매전략에 대해서 파악해 보고 하나둘씩 코드를 추가할 예정입니다.
+- 아래 매매전략 내용은 제가 처음에 작성하면서 정리한 내용이니 단순 참고만 하시면 됩니다.
 
 ## 매매전략
 
@@ -100,6 +102,7 @@ python main.py
 │   ├── trade.py
 │   └── trading_strategy.py
 │   └── trading_strategy2.py
+│   └── bollinger_band_breakout.py
 ├── upbit_data
 │   └── candle.py
 ├── utils
@@ -110,9 +113,10 @@ python main.py
 ├── README.md
 ├── logging.conf
 ├── main.py
+├── main_bb_breakout.py
 └── requirements.txt
 
-6 directories, 14 files
+6 directories, 16 files
 ```
 
 ## 참조

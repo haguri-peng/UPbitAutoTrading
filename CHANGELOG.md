@@ -1,5 +1,10 @@
 # ChangeLog
 
+## 2025-03
+
+- [매매전략 추가](/trading/bollinger_band_breakout.py)
+- 볼린저 밴드(Bollinger Band)를 활용한 매매
+
 ## 2025-01 (3)
 
 - [다른 전략 추가](/trading/trading_strategy2.py)
