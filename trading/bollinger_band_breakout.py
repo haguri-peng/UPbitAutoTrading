@@ -34,6 +34,7 @@ def trading_strategy(
         print('데이터가 부족합니다 (최소 200개 필요).')
         return {
             "signal": "",
+            "bull_market": "",
             "message": ""
         }
 
@@ -43,6 +44,15 @@ def trading_strategy(
     #
     # # 20MA 기울기 계산
     # df['MA20_slope'] = df['MA20'].diff()  # diff() 함수를 사용하여 기울기 계산
+
+    # EMA 계산
+    df['EMA50'] = df['close'].ewm(span=50, adjust=False).mean()
+    df['EMA200'] = df['close'].ewm(span=200, adjust=False).mean()
+
+    # 시장 상황 판단 (50EMA와 200EMA 비교)
+    is_bull_market = df['EMA50'].iloc[-1] > df['EMA200'].iloc[-1]
+
+    print(f'is_bull_market : {is_bull_market}')
 
     # 볼린저밴드 계산
     bollinger = BollingerBands(df['close'])
@@ -73,6 +83,7 @@ def trading_strategy(
             print(f'buy_signal! - {buy_msg}')
             return {
                 "signal": "buy",
+                "bull_market": is_bull_market,
                 "message": f"매수 조건에 부합 - {buy_msg}"
             }
 
@@ -92,10 +103,12 @@ def trading_strategy(
             print(f'buy_signal! - {sell_msg}')
             return {
                 "signal": "sell",
+                "bull_market": is_bull_market,
                 "message": f"매도 조건에 부합 - {sell_msg}"
             }
 
     return {
         "signal": "",
+        "bull_market": is_bull_market,
         "message": ""
     }

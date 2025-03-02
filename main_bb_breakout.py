@@ -139,11 +139,21 @@ def auto_trading():
             # 캔들 정보 가져오기
             doge_data = get_data()
 
-            krw_trade_amount = 10000  # 1만원씩 매매
-            formatted_trade_amount = '{:,}'.format(krw_trade_amount)
+            # 매매전략 결과 확인
             trade_strategy_result = trading_strategy(doge_data, current_position)
 
             logger.debug(f'trade_strategy_result : {trade_strategy_result}')
+
+            # Bull Market인 경우 매수 금액을 2배로 설정
+            if trade_strategy_result['bull_market']:
+                krw_trade_amount = 20000
+                # 잔고가 2만원 미만이면 1만원으로 설정
+                if krw_balance < 20000:
+                    krw_trade_amount = 10000
+            else:
+                krw_trade_amount = 10000
+
+            formatted_trade_amount = '{:,}'.format(krw_trade_amount)
 
             if trade_strategy_result['signal'] == 'buy':
                 # 매수
