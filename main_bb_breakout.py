@@ -147,15 +147,18 @@ def auto_trading():
             # Bull Market인 경우 매수 금액을 2배로 설정
             if trade_strategy_result['bull_market']:
                 krw_trade_amount = 20000
-                # 잔고가 2만원 미만이면 1만원으로 설정
+                # 잔고가 2만원 미만이면 남은 잔고로 설정
                 if krw_balance < 20000:
-                    krw_trade_amount = 10000
+                    krw_trade_amount = krw_balance
             else:
-                krw_trade_amount = 10000
+                if krw_balance < 10000:
+                    krw_trade_amount = krw_balance
+                else:
+                    krw_trade_amount = 10000
 
             formatted_trade_amount = '{:,}'.format(krw_trade_amount)
 
-            if trade_strategy_result['signal'] == 'buy':
+            if trade_strategy_result['signal'] == 'buy' and krw_trade_amount >= 5000:
                 # 매수
                 buy_result = buy_market('KRW-DOGE', krw_trade_amount)
                 if buy_result['uuid'].notnull()[0]:
