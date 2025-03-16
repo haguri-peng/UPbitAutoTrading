@@ -50,7 +50,13 @@ def trading_strategy(
     df['EMA200'] = df['close'].ewm(span=200, adjust=False).mean()
 
     # 시장 상황 판단 (50EMA와 200EMA 비교)
-    is_bull_market = df['EMA50'].iloc[-1] > df['EMA200'].iloc[-1]
+    # is_bull_market = df['EMA50'].iloc[-1] > df['EMA200'].iloc[-1]
+
+    # 시장 상황 판단 (200EMA 기울기)
+    df['EMA200_slope'] = df['EMA200'].diff()  # diff() 함수를 사용하여 기울기 계산
+
+    # 기울기가 양(+)인 경우 Bull Market
+    is_bull_market = df['EMA200_slope'].iloc[-1] > 0
 
     print(f'is_bull_market : {is_bull_market}')
 
